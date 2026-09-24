@@ -65,7 +65,7 @@ source venv/bin/activate        # on Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# edit .env if your DB credentials differ from the defaults
+# edit DATABASE_URL in .env with the real PostgreSQL username/password
 ```
 
 Load the environment variables and apply the schema:
@@ -88,12 +88,27 @@ customer_service) through the API.
 ### 4. Run the backend
 
 ```bash
-PYTHONPATH=. uvicorn app.main:app --reload --port 8000
+PYTHONPATH=. uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Interactive API docs: http://localhost:8000/docs
 
-### 5. Run the ingestion pipeline
+### 5. Run the React/Vite frontend
+
+In a separate terminal:
+
+```bash
+cd frontend
+npm install
+copy .env.example .env       # Windows
+npm run dev
+```
+
+The Vite client runs at http://localhost:5173 and reads `VITE_API_BASE_URL`
+from `frontend/.env`. The FastAPI backend accepts the default Vite origins
+through `FRONTEND_ORIGINS` in `backend/.env`.
+
+### 6. Run the ingestion pipeline
 
 With the backend's `.env` loaded and the mock organization API running
 (step 6 below), pull data into the system database:
@@ -109,7 +124,7 @@ PostgreSQL, and writes a row to `sync_logs` per source. Records already
 ingested (matched by `source_record_id`) are skipped automatically — safe
 to re-run any time.
 
-### 6. Run the mock organization API (separate terminal)
+### 7. Run the mock organization API (separate terminal)
 
 ```bash
 cd mock_org_api
