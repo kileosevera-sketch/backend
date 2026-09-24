@@ -14,3 +14,6 @@ backend/.env
 # IDEs
 .vscode/
 .idea/
+
+__pycache__/
+*.pyc

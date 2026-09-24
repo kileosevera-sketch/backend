@@ -47,11 +47,14 @@ CREATE TABLE IF NOT EXISTS complaints (
 
 CREATE TABLE IF NOT EXISTS complaint_insights (
     id SERIAL PRIMARY KEY,
-    complaint_id INTEGER REFERENCES complaints(id),
+    complaint_id INTEGER NOT NULL REFERENCES complaints(id),
     sentiment VARCHAR(20),
     severity VARCHAR(20),
     symptoms TEXT,
     category VARCHAR(100),
+    processed_text TEXT,
+    model_version VARCHAR(50),
+    confidence NUMERIC(5,4),
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
