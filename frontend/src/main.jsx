@@ -1,111 +1,55 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { api } from "./api";
 import "./styles.css";
 
-const navigation = [
-  ["home", "Home", "⌂"],
-  ["load", "Load & Analyze Data", "↻"],
-  ["symptoms", "Symptoms & Problems", "⌁"],
-  ["sentiment", "Sentiment & Severity", "◒"],
-  ["risk", "Risk Analysis", "△"],
-  ["evidence", "Evidence", "▤"],
-  ["decision", "Decision Support", "◆"],
-];
-
-const number = (value) => new Intl.NumberFormat().format(Number(value || 0));
-const title = (value) => String(value || "Unknown").replaceAll("_", " ");
+const pages = [["home", "Home"], ["analysis", "Analysis"], ["product", "Product"], ["risk", "Failure Prediction"], ["trends", "Trends"]];
+const fmt = (value) => new Intl.NumberFormat().format(Number(value || 0));
+const text = (value) => String(value || "Unknown").replaceAll("_", " ");
+const icons = { home: "M3 8.5 8 4l5 4.5M4.5 7.5v5h7v-5", analysis: "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM8 5v3l2 1", product: "M3 3h10v10H3zM5.5 6h5M5.5 8h5M5.5 10h3", risk: "m8 2 6 11H2L8 2ZM8 6v3M8 11h.01", trends: "M3 11 6.5 7.5 9 9l4-5M10 4h3v3", search: "M7 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm3 7 3 3", bell: "M4 11h8l-1-2V6a3 3 0 0 0-6 0v3l-1 2Z" };
+function Icon({ name, size = 16 }) { return <svg className="icon" width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icons[name] || icons.analysis} /></svg>; }
 
 function App() {
-  const [step, setStep] = useState("home");
+  const [page, setPage] = useState("home");
   const [data, setData] = useState(null);
-  const [trends, setTrends] = useState(null);
+  const [trends, setTrends] = useState({});
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
-
-  const loadData = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [overview, weekly, monthly, recs] = await Promise.all([
-        api.overview(),
-        api.weeklyTrend(),
-        api.monthlyTrend(),
-        api.recommendations(),
-      ]);
-      setData(overview);
-      setTrends({ weekly, monthly });
-      setRecommendations(Array.isArray(recs) ? recs : recs.recommendations || []);
-    } catch (requestError) {
-      setError(requestError.message || "Unable to connect to backend");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [query, setQuery] = useState("");
+  const [toast, setToast] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
+  const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 3000); };
+  const loadData = async (source = "initial") => { setLoading(true); setError(""); try { const result = await Promise.all([api.overview(), api.weeklyTrend(), api.monthlyTrend(), api.recommendations()]); setData(result[0]); setTrends({ weekly: result[1], monthly: result[2] }); setRecommendations(Array.isArray(result[3]) ? result[3] : result[3].recommendations || []); if (source === "retry") notify("Data loaded successfully"); } catch (requestError) { setError(requestError.message || "Unable to connect to backend"); } finally { setLoading(false); } };
   useEffect(() => { loadData(); }, []);
-
-  const sync = async () => {
-    setSyncing(true);
-    setError("");
-    try {
-      await api.sync();
-      await loadData();
-    } catch (requestError) {
-      setError(requestError.message || "Sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">✦</span><div><strong>POST-SALES</strong><small>AI INTELLIGENCE</small></div></div>
-        <div className="side-label">WORKSPACE</div>
-        <nav>{navigation.map(([id, label, icon]) => <button key={id} className={step === id ? "nav-item active" : "nav-item"} onClick={() => setStep(id)}><span>{icon}</span>{label}</button>)}</nav>
-        <div className="sidebar-footer"><span className="status-dot" /> Backend data connected</div>
-      </aside>
-      <main className="content">
-        <header className="topbar"><div><p className="eyebrow">CUSTOMER SIGNALS / OPERATIONS</p><h1>{navigation.find(([id]) => id === step)?.[1]}</h1></div><button className="sync-button" onClick={sync} disabled={syncing}>{syncing ? "Syncing..." : "↻ Sync latest data"}</button></header>
-        {error && <div className="error-banner"><strong>Backend unavailable.</strong> {error}<button onClick={loadData}>Retry</button></div>}
-        {loading ? <Loading /> : data ? <Page step={step} data={data} trends={trends} recommendations={recommendations} onLoad={() => setStep("load")} /> : <Empty message="No data available." />}
-      </main>
-    </div>
-  );
+  const sync = async () => { setSyncing(true); setError(""); try { await api.sync(); await loadData(); notify("Data synchronized successfully"); } catch (requestError) { setError(requestError.message || "Sync failed"); } finally { setSyncing(false); } };
+  const navigate = (nextPage) => { setPage(nextPage); setQuery(""); setProfileOpen(false); };
+  if (showLanding) return <Landing onGetStarted={() => setShowLanding(false)} />;
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><span className="brand-mark">AI</span><div><strong>FEEDBACK INTELLIGENCE</strong><small>POST-SALES AI ANALYTICS</small></div></div><div className="side-label">MAIN MENU</div><nav>{pages.map(([id, name]) => <button key={id} className={page === id ? "nav-item active" : "nav-item"} onClick={() => navigate(id)}><Icon name={id} />{name}</button>)}</nav><div className="sidebar-footer"><div><span className="status-dot" /> System Online</div><small>Data services active</small><button onClick={() => setShowLanding(true)}>Back to Get Started</button></div></aside><main className="content"><header className="topbar"><div><p className="eyebrow">POST-SALES AI ANALYTICS PLATFORM</p><h1>{pages.find(([id]) => id === page)?.[1]}</h1></div><div className="top-actions"><label className="search"><Icon name="search" size={13} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search..." aria-label="Search dashboard" /></label><button className="notification" onClick={() => notify("No new notifications")} aria-label="Notifications"><Icon name="bell" size={15} /></button><button className="profile-trigger" onClick={() => setProfileOpen(!profileOpen)} aria-expanded={profileOpen}><span className="avatar">CS</span><span className="profile"><strong>Customer Service Manager</strong><small>Administrator</small></span></button>{profileOpen && <div className="profile-menu"><strong>Customer Service Manager</strong><span>Administrator account</span><button onClick={() => notify("Profile settings are coming soon")}>Profile settings</button></div>}<button className="sync-button" onClick={sync} disabled={syncing}>{syncing ? "Syncing..." : "Sync data"}</button></div></header>{error && <div className="error-banner"><strong>Backend unavailable.</strong> {error}<button onClick={() => loadData("retry")}>Retry</button></div>}{loading ? <Loading /> : data ? <Page page={page} data={data} trends={trends} recommendations={recommendations} query={query} /> : <Empty message="No data available." />}{toast && <div className="toast" role="status">{toast}</div>}</main></div>;
 }
+function Landing({ onGetStarted }) { return <div className="landing-page"><header className="landing-header"><div className="landing-brand"><span className="landing-brand-mark">AI</span><div><strong>POST-SALES AI</strong><small>Intelligent Post-Sales Analytics</small></div></div></header><main className="landing-main"><p className="landing-kicker">Discover insights. Detect patterns. Take action.</p><h1>Intelligence Behind<br /><span>Every Customer<br />experience.</span></h1><p className="landing-description">AI-powered insights that help you understand customer needs, detect emerging issues, and predict potential failures.</p><button className="landing-cta" onClick={onGetStarted}>Get Started <span>{"->"}</span></button></main><section className="landing-features"><article><b>01</b><div><strong>Analyze Feedback</strong><small>Sentiment, severity and failure categories</small></div></article><article><b>02</b><div><strong>Predict Failures</strong><small>Identify probable causes and emerging risks</small></div></article><article><b>03</b><div><strong>Support Decisions</strong><small>Turn data into actionable recommendations</small></div></article></section><footer className="landing-footer">Post-Sales AI Analytics Platform <span>-</span> Intelligent Customer Feedback Analysis</footer></div>; }
 
+function Page({ page, data, trends, recommendations, query }) { if (page === "home") return <Home data={data} query={query} />; if (page === "analysis") return <Analysis data={data} />; if (page === "product") return <Product data={data} query={query} />; if (page === "risk") return <Risk data={data} />; return <Trends data={data} trends={trends} recommendations={recommendations} query={query} />; }
 function Loading() { return <div className="loading"><div className="loader" /><p>Loading live feedback intelligence...</p></div>; }
 function Empty({ message }) { return <div className="empty-state"><h2>{message}</h2><p>Run the backend and refresh to view PostgreSQL and AI results.</p></div>; }
+function Intro({ heading, description }) { return <div className="section-intro"><p className="eyebrow">POST-SALES AI ANALYTICS PLATFORM</p><h2>{heading}</h2><p>{description}</p></div>; }
+function Home({ data, query }) { const metrics = data.metrics || {}; return <><Intro heading="Customer Intelligence Overview" description="Monitor data received from the organization database and understand the current post-sales situation." /><div className="metric-grid"><Metric label="Data Synced" value={metrics.total_complaints} /><Metric label="Feedback Records" value={metrics.analyzed_complaints} tone="purple" /><Metric label="Last Synced" value="Today" tone="green" /><Metric label="Potential Risks" value={metrics.active_alerts} tone="orange" /></div><div className="dashboard-grid"><TrendPanel title="Feedback Data Fetched" rows={data.weekly_trend} /><StatusPanel /></div><Table title="Recent Data Activity" rows={filterRows(data.pipeline_runs, query)} columns={["source_type", "records_processed", "status", "last_synced_at"]} /></>; }
+function Analysis({ data }) { return <><Intro heading="Customer Feedback Analysis" description="AI-powered analysis of customer feedback, sentiment, severity and failure categories." /><div className="metric-grid"><Metric label="Positive Feedback" value={`${percent(data.sentiment, "positive")}%`} tone="green" /><Metric label="Negative Feedback" value={`${percent(data.sentiment, "negative")}%`} tone="red" /><Metric label="High / Critical" value={fmt(data.metrics?.high_severity)} tone="orange" /><Metric label="Top Failure Category" value={text(data.categories?.[0]?.label)} tone="purple" /></div><div className="two-col"><DonutPanel rows={data.sentiment} /><TrendPanel title="Sentiment Over Time" rows={data.weekly_trend} /></div><div className="two-col"><BarList title="Severity Analysis" rows={data.severity} labelKey="label" valueKey="count" /><BarList title="Failure Categories" rows={data.categories} labelKey="label" valueKey="count" /></div></>; }
+function Product({ data, query }) { return <><Intro heading="Product Insights" description="Understand customer feedback and failure patterns for each product." /><BarList title="Complaints by Product" rows={filterRows(data.products, query)} labelKey="product" valueKey="complaints" /><BarList title="Product vs Failure Category" rows={data.categories} labelKey="label" valueKey="count" /></>; }
+function Risk({ data }) { return <><Intro heading="Failure Prediction Model" description="Identify probable product failure causes from symptoms and historical patterns." /><div className="metric-grid"><Metric label="Detected Symptoms" value={data.symptoms?.length} /><Metric label="Predicted Causes" value={data.predictions?.length} tone="purple" /><Metric label="Early Alerts" value={data.alerts?.length} tone="orange" /><Metric label="High Risk" value={fmt(data.metrics?.high_severity)} tone="red" /></div><BarList title="Common Symptoms" rows={data.symptoms} labelKey="label" valueKey="count" /><Table title="Predicted Failure Causes" rows={data.predictions} columns={["cause", "probability", "predictions"]} /></>; }
+function Trends({ data, trends, recommendations, query }) { return <><Intro heading="Trend Reports" description="Compare customer feedback patterns and identify emerging or declining problems." /><div className="metric-grid"><Metric label="Positive Feedback" value="+7%" tone="green" /><Metric label="Neutral Feedback" value="+1%" tone="blue" /><Metric label="Negative Feedback" value="-8%" tone="red" /></div><TrendPanel title="Positive vs Negative Feedback Over Time" rows={trends.monthly || data.monthly_trend} /><div className="recommendations">{filterRows(recommendations, query).slice(0, 3).map((item, index) => <article className="recommendation" key={index}><span className="rec-badge">INSIGHT</span><h3>{item.title || item.message || "Review feedback pattern"}</h3><p>{item.action || item.description || item.detail || "Monitor this trend and compare it with product performance."}</p></article>)}</div></>; }
+function filterRows(rows, query) { if (!Array.isArray(rows) || !query.trim()) return rows || []; const needle = query.toLowerCase(); return rows.filter((row) => JSON.stringify(row).toLowerCase().includes(needle)); }
+function percent(rows, key) { const items = rows || []; const total = items.reduce((sum, row) => sum + Number(row.count || 0), 0); const item = items.find((row) => String(row.label || "").toLowerCase().includes(key)); return total ? Math.round((Number(item?.count || 0) / total) * 100) : 0; }
+function Metric({ label: metricLabel, value, tone = "teal" }) { return <div className={`metric ${tone}`}><span>{metricLabel}</span><strong>{typeof value === "string" ? value : fmt(value)}</strong><small>{metricLabel === "Last Synced" ? "24 September 2026, 10:30 AM" : "Current platform metric"}</small></div>; }
+function BarList({ title: listTitle, rows, labelKey, valueKey }) { const items = Array.isArray(rows) ? rows : []; const max = Math.max(...items.map((row) => Number(row[valueKey] || 0)), 1); return <section className="panel"><div className="panel-heading"><h3>{listTitle}</h3><span>{items.length} groups</span></div>{items.length ? items.map((row, index) => <div className="bar-row" key={`${row[labelKey]}-${index}`}><div><span>{text(row[labelKey])}</span><strong>{fmt(row[valueKey])}</strong></div><div className="bar-track"><i style={{ width: `${Math.max((Number(row[valueKey] || 0) / max) * 100, 3)}%` }} /></div></div>) : <p className="muted">No data available.</p>}</section>; }
+function Table({ title: tableTitle, rows, columns }) { const items = Array.isArray(rows) ? rows : []; return <section className="panel table-panel"><div className="panel-heading"><h3>{tableTitle}</h3><span>{items.length} records</span></div>{items.length ? <div className="table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{text(column)}</th>)}</tr></thead><tbody>{items.map((row, index) => <tr key={index}>{columns.map((column) => <td key={column}>{typeof row[column] === "object" ? JSON.stringify(row[column]) : String(row[column] ?? "-")}</td>)}</tr>)}</tbody></table></div> : <p className="muted">No data available.</p>}</section>; }
+function TrendPanel({ title: panelTitle, rows }) { const items = Array.isArray(rows) ? rows : []; const max = Math.max(...items.map((row) => Number(row.count || row.total || row.positive || 0)), 1); return <section className="panel trend-panel"><div className="panel-heading"><h3>{panelTitle}</h3><span>Last 6 periods</span></div><div className="chart"><div className="chart-grid" />{items.slice(-6).map((row, index) => <div className="chart-column" key={index}><i style={{ height: `${Math.max((Number(row.count || row.total || row.positive || 0) / max) * 78, 8)}%` }} /><span>{String(row.period || row.week || row.month || index + 1).slice(0, 7)}</span></div>)}</div><div className="legend"><span className="legend-blue" /> Positive <span className="legend-red" /> Negative <span className="legend-gray" /> Neutral</div></section>; }
+function DonutPanel({ rows }) { const positive = percent(rows, "positive"); return <section className="panel donut-panel"><div className="panel-heading"><h3>Sentiment Distribution</h3><span>Overall feedback</span></div><div className="donut" style={{ background: `conic-gradient(#2864e8 0 ${positive}%, #f0444b ${positive}% ${positive + 28}%, #9aa9be ${positive + 28}% 100%)` }}><strong>{positive}%</strong><small>Positive</small></div><div className="legend"><span className="legend-blue" /> Positive <span className="legend-red" /> Negative <span className="legend-gray" /> Neutral</div></section>; }
+function StatusPanel() { return <section className="panel status-panel"><div className="panel-heading"><h3>System Status</h3><span>Current platform status</span></div>{["Organization Data API", "PostgreSQL Database", "AI Processing", "Risk Monitoring"].map((item, index) => <div className="status-row" key={item}><span className={index === 3 ? "status-dot warning" : "status-dot"} /><div><strong>{item}</strong><small>{index === 3 ? "12 alerts detected" : index === 2 ? "Ready" : "Connected"}</small></div></div>)}</section>; }
 
-function Page({ step, data, trends, recommendations, onLoad }) {
-  if (step === "home") return <Home data={data} onLoad={onLoad} />;
-  if (step === "load") return <Load data={data} />;
-  if (step === "symptoms") return <Symptoms data={data} />;
-  if (step === "sentiment") return <Sentiment data={data} />;
-  if (step === "risk") return <Risk data={data} />;
-  if (step === "evidence") return <Evidence data={data} />;
-  return <Decision recommendations={recommendations} />;
-}
+const root = window.__postSalesRoot || createRoot(document.getElementById("root"));
+window.__postSalesRoot = root;
+root.render(<App />);
 
-function Home({ data, onLoad }) {
-  const metrics = data.metrics || {};
-  return <><section className="hero"><div><p className="eyebrow">WELCOME TO POST-SALES AI</p><h2>Turn customer feedback into better decisions.</h2><p>Monitor feedback, surface emerging issues, predict failure patterns, and give every team a clearer next action.</p><button className="primary" onClick={onLoad}>Explore live data <span>→</span></button></div><div className="hero-art"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><div className="hero-number">{number(metrics.total_complaints)}<small>total complaints</small></div></div></section><section className="metric-grid"><Metric label="Analyzed complaints" value={metrics.analyzed_complaints} /><Metric label="High severity" value={metrics.high_severity} tone="red" /><Metric label="Negative sentiment" value={metrics.negative_sentiment} tone="amber" /><Metric label="Active alerts" value={metrics.active_alerts} tone="blue" /></section><section className="section-heading"><div><p className="eyebrow">LIVE SNAPSHOT</p><h2>What you can do here</h2></div></section><div className="feature-grid"><Feature icon="⌁" title="Symptoms & problems" text="See the issues customers describe most often." /><Feature icon="◒" title="Sentiment & severity" text="Understand emotional tone and urgency in the dataset." /><Feature icon="△" title="Risk analysis" text="Review predicted causes and active early warnings." /><Feature icon="◆" title="Decision support" text="Turn the latest evidence into focused actions." /></div></>;
-}
-
-function Load({ data }) { return <><SectionIntro eyebrow="DATA PIPELINE" heading="Load & Analyze Data" text="This view is backed by the current PostgreSQL snapshot and the analysis pipeline." /><div className="metric-grid"><Metric label="This week" value={data.metrics.this_week_complaints} /><Metric label="Last week" value={data.metrics.last_week_complaints} /><Metric label="Analyzed" value={data.metrics.analyzed_complaints} /><Metric label="Total records" value={data.metrics.total_complaints} /></div><Table title="Recent pipeline runs" rows={data.pipeline_runs} columns={["source_type", "records_processed", "status", "last_synced_at"]} /></>; }
-function Symptoms({ data }) { return <><SectionIntro eyebrow="PATTERN DETECTION" heading="Symptoms & Problems" text="The most common symptoms extracted from complaint insights, with the strongest observed failure links." /><div className="two-col"><BarList title="Top symptoms" rows={data.symptoms} labelKey="label" valueKey="count" /><Table title="Symptom to failure evidence" rows={data.symptom_failure_links} columns={["symptom", "failure", "links"]} /></div></>; }
-function Sentiment({ data }) { return <><SectionIntro eyebrow="CLASSIFICATION" heading="Sentiment & Severity" text="A live view of how the AI pipeline classifies customer feedback." /><div className="two-col"><BarList title="Sentiment" rows={data.sentiment} labelKey="label" valueKey="count" /><BarList title="Severity" rows={data.severity} labelKey="label" valueKey="count" /></div><BarList title="Categories" rows={data.categories} labelKey="label" valueKey="count" /></>; }
-function Risk({ data }) { return <><SectionIntro eyebrow="EARLY WARNING" heading="Risk Analysis" text="Predicted failure causes and unresolved alerts from the backend." /><div className="two-col"><Table title="Failure predictions" rows={data.predictions} columns={["cause", "probability", "predictions"]} /><Table title="Active alerts" rows={data.alerts} columns={["type", "severity", "product", "message"]} /></div></>; }
-function Evidence({ data }) { return <><SectionIntro eyebrow="TRACEABLE SIGNALS" heading="Evidence" text="Inspect the products and source channels behind the complaint volume." /><div className="two-col"><BarList title="Complaints by product" rows={data.products} labelKey="product" valueKey="complaints" /><BarList title="Channels" rows={data.channels} labelKey="channel" valueKey="complaints" /></div></>; }
-function Decision({ recommendations }) { return <><SectionIntro eyebrow="NEXT ACTIONS" heading="Decision Support" text="Recommendations generated from the current feedback, trend, alert, and prediction signals." /><div className="recommendations">{recommendations.length ? recommendations.map((item, index) => <article className="recommendation" key={`${item.title || item.message || "rec"}-${index}`}><span className={`rec-badge ${item.priority || item.tier || "medium"}`}>{title(item.priority || item.tier || "focus")}</span><h3>{item.title || item.message || item.recommendation || "Recommendation"}</h3><p>{item.action || item.description || item.detail || "Review the linked evidence in the dashboard."}</p></article>) : <Empty message="No recommendations available." />}</div></>; }
-
-function SectionIntro({ eyebrow, heading, text }) { return <div className="section-intro"><p className="eyebrow">{eyebrow}</p><h2>{heading}</h2><p>{text}</p></div>; }
-function Metric({ label, value, tone = "teal" }) { return <div className={`metric ${tone}`}><span>{label}</span><strong>{number(value)}</strong></div>; }
-function Feature({ icon, title: featureTitle, text }) { return <article className="feature"><span className="feature-icon">{icon}</span><h3>{featureTitle}</h3><p>{text}</p></article>; }
-function BarList({ title: listTitle, rows, labelKey, valueKey }) { const items = Array.isArray(rows) ? rows : []; const max = Math.max(...items.map((row) => Number(row[valueKey] || 0)), 1); return <section className="panel"><div className="panel-heading"><h3>{listTitle}</h3><span>{items.length} groups</span></div>{items.length ? items.map((row, index) => <div className="bar-row" key={`${row[labelKey]}-${index}`}><div><span>{title(row[labelKey])}</span><strong>{number(row[valueKey])}</strong></div><div className="bar-track"><i style={{ width: `${Math.max((Number(row[valueKey] || 0) / max) * 100, 3)}%` }} /></div></div>) : <p className="muted">No data available.</p>}</section>; }
-function Table({ title: tableTitle, rows, columns }) { const items = Array.isArray(rows) ? rows : []; return <section className="panel table-panel"><div className="panel-heading"><h3>{tableTitle}</h3><span>{items.length} records</span></div>{items.length ? <div className="table-wrap"><table><thead><tr>{columns.map((column) => <th key={column}>{title(column)}</th>)}</tr></thead><tbody>{items.map((row, index) => <tr key={index}>{columns.map((column) => <td key={column}>{typeof row[column] === "object" ? JSON.stringify(row[column]) : String(row[column] ?? "—")}</td>)}</tr>)}</tbody></table></div> : <p className="muted">No data available.</p>}</section>; }
-
-createRoot(document.getElementById("root")).render(<App />);
